@@ -29,7 +29,6 @@ public class FlatDarkLaf
 	extends FlatLaf
 {
 	public static final String NAME = "FlatLaf Dark";
-	public static final String dfd = "dfd";
 
 	/**
 	 * Sets the application look and feel to this LaF
