@@ -182,7 +182,7 @@ import com.formdev.flatlaf.util.UIScale;
  */
 public class FlatTabbedPaneUI
 	extends BasicTabbedPaneUI
-	implements StyleableUI
+	implements StyleableUI, FlatTitlePane.TitleBarCaptionHitTest
 {
 	// tab type
 	/** @since 2 */ protected static final int TAB_TYPE_UNDERLINED = 0;
@@ -2300,6 +2300,17 @@ debug*/
 		return (rects[last].y + rects[last].height) - rects[0].y;
 	}
 
+	//---- interface FlatTitlePane.TitleBarCaptionHitTest ----
+
+	/** @since 3.4 */
+	@Override
+	public Boolean isTitleBarCaptionAt( int x, int y ) {
+		if( tabForCoordinate( tabPane, x, y ) >= 0 )
+			return false;
+
+		return null; // check children
+	}
+
 	//---- class TabCloseButton -----------------------------------------------
 
 	private static class TabCloseButton
@@ -3756,9 +3767,20 @@ debug*/
 			boolean hideDisabledScrollButtons = (scrollButtonsPolicy == AS_NEEDED_SINGLE && scrollButtonsPlacement == BOTH);
 			boolean trailingScrollButtons = (scrollButtonsPlacement == TRAILING);
 
-			// for right-to-left always use "more tabs" button for horizontal scrolling
+			// For right-to-left, always use "more tabs" button for horizontal scrolling
 			// because methods scrollForward() and scrollBackward() in class
-			// BasicTabbedPaneUI.ScrollableTabSupport do not work for right-to-left
+			// BasicTabbedPaneUI.ScrollableTabSupport do not work for right-to-left.
+			//
+			// One problem is that BasicTabbedPaneUI.getClosestTab(), which is used
+			// to compute leadingTabIndex, does not work for right-to-left because is uses "binary" search
+			// on rects[] to find tab, but rects[] is ordered in reverse order for right-to-left.
+			// So leadingTabIndex is either zero or tabCount.
+			// Therefore increasing/decreasing leadingTabIndex in scrollForward()
+			// and scrollBackward() does not work as expected.
+			// Also backward/forward scroll buttons are not correctly enabled/disabled.
+			//
+			// Fixing this would require replacing nearly whole functionality of class
+			// BasicTabbedPaneUI.ScrollableTabSupport, which is not possible because it is private.
 			boolean leftToRight = isLeftToRight();
 			if( !leftToRight && isHorizontalTabPlacement( tabPane.getTabPlacement() ) ) {
 				useMoreTabsButton = true;
@@ -3840,6 +3862,8 @@ debug*/
 							w -= buttonWidth;
 							moreTabsButtonVisible = true;
 						}
+
+						// layout scroll buttons
 						if( useScrollButtons ) {
 							// the tabViewport view size is set in
 							// BasicTabbedPaneUI.TabbedPaneScrollLayout.calculateTabRects(),
@@ -3847,29 +3871,27 @@ debug*/
 							Point viewPosition = tabViewport.getViewPosition();
 							Dimension viewSize = tabViewport.getViewSize();
 
+							// layout forward button on trailing side
+							if( !hideDisabledScrollButtons || viewSize.width - viewPosition.x > w ) {
+								int buttonWidth = forwardButton.getPreferredSize().width;
+								forwardButton.setBounds( x + w - buttonWidth, y, buttonWidth, h );
+								w -= buttonWidth;
+								forwardButtonVisible = true;
+							}
+
 							// layout backward button
 							if( !hideDisabledScrollButtons || viewPosition.x > 0 ) {
 								int buttonWidth = backwardButton.getPreferredSize().width;
 								if( trailingScrollButtons ) {
 									// on trailing side
-									backwardButton.setBounds( leftToRight ? (x + w - buttonWidth) : x, y, buttonWidth, h );
-									x += leftToRight ? 0 : buttonWidth;
+									backwardButton.setBounds( x + w - buttonWidth, y, buttonWidth, h );
 								} else {
 									// on leading side
-									backwardButton.setBounds( leftToRight ? x : (x + w - buttonWidth), y, buttonWidth, h );
-									x += leftToRight ? buttonWidth : 0;
+									backwardButton.setBounds( x, y, buttonWidth, h );
+									x += buttonWidth;
 								}
 								w -= buttonWidth;
 								backwardButtonVisible = true;
-							}
-
-							// layout forward button on trailing side
-							if( !hideDisabledScrollButtons || viewSize.width - viewPosition.x > w ) {
-								int buttonWidth = forwardButton.getPreferredSize().width;
-								forwardButton.setBounds( leftToRight ? (x + w - buttonWidth) : x, y, buttonWidth, h );
-								x += leftToRight ? 0 : buttonWidth;
-								w -= buttonWidth;
-								forwardButtonVisible = true;
 							}
 						}
 					}
@@ -3916,12 +3938,22 @@ debug*/
 							h -= buttonHeight;
 							moreTabsButtonVisible = true;
 						}
+
+						// layout scroll buttons
 						if( useScrollButtons ) {
 							// the tabViewport view size is set in
 							// BasicTabbedPaneUI.TabbedPaneScrollLayout.calculateTabRects(),
 							// which is called from calculateLayoutInfo()
 							Point viewPosition = tabViewport.getViewPosition();
 							Dimension viewSize = tabViewport.getViewSize();
+
+							// layout forward button on bottom side
+							if( !hideDisabledScrollButtons || viewSize.height - viewPosition.y > h ) {
+								int buttonHeight = forwardButton.getPreferredSize().height;
+								forwardButton.setBounds( x, y + h - buttonHeight, w, buttonHeight );
+								h -= buttonHeight;
+								forwardButtonVisible = true;
+							}
 
 							// layout backward button
 							if( !hideDisabledScrollButtons || viewPosition.y > 0 ) {
@@ -3936,14 +3968,6 @@ debug*/
 								}
 								h -= buttonHeight;
 								backwardButtonVisible = true;
-							}
-
-							// layout forward button on bottom side
-							if( !hideDisabledScrollButtons || viewSize.height - viewPosition.y > h ) {
-								int buttonHeight = forwardButton.getPreferredSize().height;
-								forwardButton.setBounds( x, y + h - buttonHeight, w, buttonHeight );
-								h -= buttonHeight;
-								forwardButtonVisible = true;
 							}
 						}
 					}
@@ -3985,10 +4009,8 @@ debug*/
 	//---- class RunWithOriginalLayoutManagerDelegateAction -------------------
 
 	private static class RunWithOriginalLayoutManagerDelegateAction
-		implements Action
+		extends FlatUIAction
 	{
-		private final Action delegate;
-
 		static void install( ActionMap map, String key ) {
 			Action oldAction = map.get( key );
 			if( oldAction == null || oldAction instanceof RunWithOriginalLayoutManagerDelegateAction )
@@ -3998,23 +4020,8 @@ debug*/
 		}
 
 		private RunWithOriginalLayoutManagerDelegateAction( Action delegate ) {
-			this.delegate = delegate;
+			super( delegate );
 		}
-
-		@Override
-		public Object getValue( String key ) {
-			return delegate.getValue( key );
-		}
-
-		@Override
-		public boolean isEnabled() {
-			return delegate.isEnabled();
-		}
-
-		@Override public void putValue( String key, Object value ) {}
-		@Override public void setEnabled( boolean b ) {}
-		@Override public void addPropertyChangeListener( PropertyChangeListener listener ) {}
-		@Override public void removePropertyChangeListener( PropertyChangeListener listener ) {}
 
 		@Override
 		public void actionPerformed( ActionEvent e ) {

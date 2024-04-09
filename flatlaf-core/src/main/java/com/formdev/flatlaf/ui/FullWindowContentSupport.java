@@ -172,6 +172,13 @@ class FullWindowContentSupport
 		rootPane.putClientProperty( FlatClientProperties.FULL_WINDOW_CONTENT_BUTTONS_BOUNDS, bounds );
 	}
 
+	static void macUninstallFullWindowContentButtonsBoundsProperty( JRootPane rootPane ) {
+		if( !SystemInfo.isMacFullWindowContentSupported )
+			return;
+
+		rootPane.putClientProperty( FlatClientProperties.FULL_WINDOW_CONTENT_BUTTONS_BOUNDS, null );
+	}
+
 	static void debugPaint( Graphics g, JComponent c ) {
 		if( !UIManager.getBoolean( KEY_DEBUG_SHOW_PLACEHOLDERS ) )
 			return;
@@ -202,9 +209,11 @@ class FullWindowContentSupport
 		g.drawRect( r.x, r.y, r.width - 1, r.height - 1 );
 
 		// draw diagonal cross
+		int x2 = r.x + r.width - 1;
+		int y2 = r.y + r.height - 1;
 		Object[] oldRenderingHints = FlatUIUtils.setRenderingHints( g );
-		g.drawLine( r.x, r.y, r.width - 1, r.height - 1 );
-		g.drawLine( r.x, r.height - 1, r.width - 1, r.y );
+		g.drawLine( r.x, r.y, x2, y2 );
+		g.drawLine( r.x, y2, x2, r.y );
 		FlatUIUtils.resetRenderingHints( g, oldRenderingHints );
 	}
 }

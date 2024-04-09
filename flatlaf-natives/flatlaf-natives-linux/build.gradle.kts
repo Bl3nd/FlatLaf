@@ -21,11 +21,14 @@ plugins {
 }
 
 flatlafJniHeaders {
-	headers = listOf( "com_formdev_flatlaf_ui_FlatNativeLinuxLibrary.h" )
+	headers = listOf(
+		"com_formdev_flatlaf_ui_FlatNativeLibrary.h",
+		"com_formdev_flatlaf_ui_FlatNativeLinuxLibrary.h"
+	)
 }
 
 library {
-	targetMachines.set( listOf( machines.linux.x86_64 ) )
+	targetMachines = listOf( machines.linux.x86_64 )
 }
 
 var javaHome = System.getProperty( "java.home" )

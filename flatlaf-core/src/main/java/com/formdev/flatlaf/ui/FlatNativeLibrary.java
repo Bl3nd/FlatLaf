@@ -22,6 +22,7 @@ import java.security.CodeSource;
 import com.formdev.flatlaf.FlatSystemProperties;
 import com.formdev.flatlaf.util.LoggingFacade;
 import com.formdev.flatlaf.util.NativeLibrary;
+import com.formdev.flatlaf.util.StringUtils;
 import com.formdev.flatlaf.util.SystemInfo;
 
 /**
@@ -36,16 +37,18 @@ class FlatNativeLibrary
 	private static boolean initialized;
 	private static NativeLibrary nativeLibrary;
 
+	private native static int getApiVersion();
+
 	/**
 	 * Loads native library (if available) and returns whether loaded successfully.
 	 * Returns {@code false} if no native library is available.
 	 */
-	static synchronized boolean isLoaded() {
-		initialize();
+	static synchronized boolean isLoaded( int apiVersion ) {
+		initialize( apiVersion );
 		return (nativeLibrary != null) ? nativeLibrary.isLoaded() : false;
 	}
 
-	private static void initialize() {
+	private static void initialize( int apiVersion ) {
 		if( initialized )
 			return;
 		initialized = true;
@@ -103,7 +106,26 @@ class FlatNativeLibrary
 			return; // no native library available for current OS or CPU architecture
 
 		// load native library
-		nativeLibrary = createNativeLibrary( classifier, ext );
+		NativeLibrary nativeLibrary = createNativeLibrary( classifier, ext );
+		if( !nativeLibrary.isLoaded() )
+			return;
+
+		// check API version (and check whether library works)
+		try {
+			int actualApiVersion = getApiVersion();
+			if( actualApiVersion != apiVersion ) {
+				LoggingFacade.INSTANCE.logSevere( "FlatLaf: Wrong API version in native library (expected "
+					+ apiVersion + ", actual " + actualApiVersion + "). Ignoring native library.", null );
+				return;
+			}
+		} catch( Throwable ex ) {
+			// could be a UnsatisfiedLinkError in case that loading native library
+			// from temp directory was blocked by some OS security mechanism
+			LoggingFacade.INSTANCE.logSevere( "FlatLaf: Failed to get API version of native library. Ignoring native library.", ex );
+			return;
+		}
+
+		FlatNativeLibrary.nativeLibrary = nativeLibrary;
 	}
 
 	private static NativeLibrary createNativeLibrary( String classifier, String ext ) {
@@ -117,9 +139,9 @@ class FlatNativeLibrary
 				if( library.isLoaded() )
 					return library;
 
-				LoggingFacade.INSTANCE.logSevere( "Did not find library '" + System.mapLibraryName( libraryName )
-					+ "' in java.library.path '" + System.getProperty( "java.library.path" )
-					+ "', using extracted library instead", null );
+				LoggingFacade.INSTANCE.logSevere( "FlatLaf: Native library '" + System.mapLibraryName( libraryName )
+					+ "' not found in java.library.path '" + System.getProperty( "java.library.path" )
+					+ "'. Using extracted native library instead.", null );
 			} else {
 				// try standard library naming scheme
 				// (same as in flatlaf.jar in package 'com/formdev/flatlaf/natives')
@@ -138,11 +160,11 @@ class FlatNativeLibrary
 						return new NativeLibrary( libraryFile2, true );
 				}
 
-				LoggingFacade.INSTANCE.logSevere( "Did not find library '"
+				LoggingFacade.INSTANCE.logSevere( "FlatLaf: Native library '"
 					+ libraryFile.getName()
 					+ (libraryName2 != null ? ("' or '" + libraryName2) : "")
-					+ "' in '" + libraryFile.getParentFile().getAbsolutePath()
-					+ "', using extracted library instead", null );
+					+ "' not found in '" + libraryFile.getParentFile().getAbsolutePath()
+					+ "'. Using extracted native library instead.", null );
 			}
 		}
 
@@ -177,19 +199,37 @@ class FlatNativeLibrary
 
 		// build library file
 		String libraryName = buildLibraryName( jarFile, classifier, ext );
-		File parent = jarFile.getParentFile();
+		File jarDir = jarFile.getParentFile();
 
 		// check whether native library exists in same directory as jar
-		File libraryFile = new File( parent, libraryName );
+		File libraryFile = new File( jarDir, libraryName );
 		if( libraryFile.isFile() )
 			return libraryFile;
 
 		// if jar is in "lib" directory, then also check whether native library exists
 		// in "../bin" directory
-		if( parent.getName().equalsIgnoreCase( "lib" ) ) {
-			libraryFile = new File( parent.getParentFile(), "bin/" + libraryName );
+		if( jarDir.getName().equalsIgnoreCase( "lib" ) ) {
+			libraryFile = new File( jarDir.getParentFile(), "bin/" + libraryName );
 			if( libraryFile.isFile() )
 				return libraryFile;
+		}
+
+		// special case: support Gradle cache when running in development environment
+		//   <user-home>/.gradle/caches/modules-2/files-2.1/com.formdev/flatlaf/<version>/<hash-1>/flatlaf-<version>.jar
+		//   <user-home>/.gradle/caches/modules-2/files-2.1/com.formdev/flatlaf/<version>/<hash-2>/flatlaf-<version>-windows-x86_64.dll
+		String path = jarDir.getAbsolutePath().replace( '\\', '/' );
+		if( path.contains( "/.gradle/caches/" ) ) {
+			File versionDir = jarDir.getParentFile();
+			if( libraryName.contains( versionDir.getName() ) ) {
+				File[] dirs = versionDir.listFiles();
+				if( dirs != null ) {
+					for( File dir : dirs ) {
+						libraryFile = new File( dir, libraryName );
+						if( libraryFile.isFile() )
+							return libraryFile;
+					}
+				}
+			}
 		}
 
 		// native library not found
@@ -224,6 +264,10 @@ class FlatNativeLibrary
 	private static String buildLibraryName( File jarFile, String classifier, String ext ) {
 		String jarName = jarFile.getName();
 		String jarBasename = jarName.substring( 0, jarName.lastIndexOf( '.' ) );
+
+		// remove classifier "no-natives" (if used)
+		jarBasename = StringUtils.removeTrailing( jarBasename, "-no-natives" );
+
 		return jarBasename
 			+ (jarBasename.contains( "flatlaf" ) ? "" : "-flatlaf")
 			+ '-' + classifier + '.' + ext;

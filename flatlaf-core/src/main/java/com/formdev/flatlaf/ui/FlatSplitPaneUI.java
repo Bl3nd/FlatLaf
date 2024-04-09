@@ -84,7 +84,7 @@ import com.formdev.flatlaf.util.UIScale;
  */
 public class FlatSplitPaneUI
 	extends BasicSplitPaneUI
-	implements StyleableUI
+	implements StyleableUI, FlatTitlePane.TitleBarCaptionHitTest
 {
 	@Styleable protected String arrowType;
 	/** @since 3.3 */ @Styleable protected Color draggingColor;
@@ -227,6 +227,15 @@ public class FlatSplitPaneUI
 			((FlatSplitPaneDivider)divider).paintStyle( g, x, y, width, height );
 	}
 
+	//---- interface FlatTitlePane.TitleBarCaptionHitTest ----
+
+	/** @since 3.4 */
+	@Override
+	public Boolean isTitleBarCaptionAt( int x, int y ) {
+		// necessary because BasicSplitPaneDivider adds some mouse listeners for dragging divider
+		return null; // check children
+	}
+
 	//---- class FlatSplitPaneDivider -----------------------------------------
 
 	protected class FlatSplitPaneDivider
@@ -291,6 +300,10 @@ public class FlatSplitPaneUI
 				case JSplitPane.DIVIDER_LOCATION_PROPERTY:
 					// necessary to show/hide one-touch buttons on expand/collapse
 					doLayout();
+					break;
+
+				case FlatClientProperties.SPLIT_PANE_EXPANDABLE_SIDE:
+					revalidate();
 					break;
 			}
 		}

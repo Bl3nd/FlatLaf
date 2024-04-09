@@ -33,8 +33,8 @@ plugins {
 dependencies {
 	implementation( project( ":flatlaf-core" ) )
 
-	testImplementation( libs.bundles.junit )
-	testRuntimeOnly( libs.junit.engine )
+	testImplementation( libs.junit )
+	testRuntimeOnly( libs.junit.launcher )
 }
 
 flatlafModuleInfo {
@@ -56,7 +56,7 @@ tasks {
 		testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
 	}
 
-	withType<PublishToMavenRepository>().configureEach {
+	withType<AbstractPublishToMaven>().configureEach {
 		onlyIf { !rootProject.hasProperty( "skipFonts" ) }
 	}
 }
@@ -73,8 +73,8 @@ publishing {
 			pom {
 				licenses {
 					license {
-						name.set( "SIL OPEN FONT LICENSE Version 1.1" )
-						url.set( "https://choosealicense.com/licenses/ofl-1.1/" )
+						name = "SIL OPEN FONT LICENSE Version 1.1"
+						url = "https://choosealicense.com/licenses/ofl-1.1/"
 					}
 				}
 			}

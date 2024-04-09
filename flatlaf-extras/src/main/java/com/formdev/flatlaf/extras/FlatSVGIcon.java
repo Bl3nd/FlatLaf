@@ -25,6 +25,7 @@ import java.awt.Image;
 import java.awt.Paint;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.LinearGradientPaint;
 import java.awt.image.BufferedImage;
 import java.awt.image.RGBImageFilter;
 import java.io.File;
@@ -62,6 +63,8 @@ public class FlatSVGIcon
 	extends ImageIcon
 	implements DisabledIconProvider
 {
+	private static boolean loggingEnabled = true;
+	private static boolean svgCacheEnabled = true;
 	// cache that uses soft references for values, which allows freeing SVG documents if no longer used
 	private static final SoftCache<String, SVGDocument> svgCache = new SoftCache<>();
 	private static final SVGLoader svgLoader = new SVGLoader();
@@ -271,7 +274,8 @@ public class FlatSVGIcon
 
 			if( document == null ) {
 				loadFailed = true;
-				LoggingFacade.INSTANCE.logSevere( "FlatSVGIcon: failed to load SVG icon from input stream", null );
+				if( loggingEnabled )
+					LoggingFacade.INSTANCE.logConfig( "FlatSVGIcon: failed to load SVG icon from input stream", null );
 			}
 		}
 	}
@@ -449,8 +453,9 @@ public class FlatSVGIcon
 	 * @param colorFilter The color filter
 	 * @since 1.2
 	 */
-	public void setColorFilter( ColorFilter colorFilter ) {
+	public FlatSVGIcon setColorFilter( ColorFilter colorFilter ) {
 		this.colorFilter = colorFilter;
+		return this;
 	}
 
 	private void update() {
@@ -474,7 +479,8 @@ public class FlatSVGIcon
 
 			if( url == null ) {
 				loadFailed = true;
-				LoggingFacade.INSTANCE.logConfig( "FlatSVGIcon: resource '" + name + "' not found (if using Java modules, check whether icon package is opened in module-info.java)", null );
+				if( loggingEnabled )
+					LoggingFacade.INSTANCE.logConfig( "FlatSVGIcon: resource '" + name + "' not found (if using Java modules, check whether icon package is opened in module-info.java)", null );
 				return;
 			}
 		}
@@ -484,6 +490,9 @@ public class FlatSVGIcon
 	}
 
 	static synchronized SVGDocument loadSVG( URL url ) {
+		if( !svgCacheEnabled )
+			return loadSVGUncached( url );
+
 		// get from our cache
 		String cacheKey = url.toString();
 		SVGDocument document = svgCache.get( cacheKey );
@@ -491,14 +500,21 @@ public class FlatSVGIcon
 			return document;
 
 		// load SVG document
-		document = svgLoader.load( url );
-
-		if( document == null ) {
-			LoggingFacade.INSTANCE.logSevere( "FlatSVGIcon: failed to load '" + url + "'", null );
-			return null;
-		}
+		document = loadSVGUncached( url );
 
 		svgCache.put( cacheKey, document );
+
+		return document;
+	}
+
+	private static SVGDocument loadSVGUncached( URL url ) {
+		SVGDocument document = svgLoader.load( url );
+
+		if( document == null ) {
+			if( loggingEnabled )
+				LoggingFacade.INSTANCE.logConfig( "FlatSVGIcon: failed to load '" + url + "'", null );
+			return null;
+		}
 
 		return document;
 	}
@@ -611,7 +627,10 @@ public class FlatSVGIcon
 	}
 
 	private void paintSvgError( Graphics2D g, int x, int y ) {
-		g.setColor( Color.red );
+		if( g instanceof GraphicsFilter )
+			((GraphicsFilter)g).setColorUnfiltered( Color.red );
+		else
+			g.setColor( Color.red );
 		g.fillRect( x, y, getIconWidth(), getIconHeight() );
 	}
 
@@ -690,6 +709,34 @@ public class FlatSVGIcon
 
 	private static void lafChanged() {
 		darkLaf = FlatLaf.isLafDark();
+	}
+
+	/** @since 3.4.1 */
+	public static boolean isLoggingEnabled() {
+		return loggingEnabled;
+	}
+
+	/** @since 3.4.1 */
+	public static void setLoggingEnabled( boolean loggingEnabled ) {
+		FlatSVGIcon.loggingEnabled = loggingEnabled;
+	}
+
+	/** @since 3.4.1 */
+	public static boolean isSVGDocumentEnabled() {
+		return svgCacheEnabled;
+	}
+
+	/** @since 3.4.1 */
+	public static void setSVGDocumentEnabled( boolean svgCacheEnabled ) {
+		FlatSVGIcon.svgCacheEnabled = svgCacheEnabled;
+
+		if( !svgCacheEnabled )
+			clearSVGDocumentCache();
+	}
+
+	/** @since 3.4.1 */
+	public static void clearSVGDocumentCache() {
+		svgCache.clear();
 	}
 
 	//---- class ColorFilter --------------------------------------------------
@@ -978,10 +1025,23 @@ public class FlatSVGIcon
 			super.setColor( filterColor( c ) );
 		}
 
+		void setColorUnfiltered( Color c ) {
+			super.setColor( c );
+		}
+
 		@Override
 		public void setPaint( Paint paint ) {
 			if( paint instanceof Color )
 				paint = filterColor( (Color) paint );
+			else if( paint instanceof LinearGradientPaint ) {
+				LinearGradientPaint oldPaint = (LinearGradientPaint) paint;
+				Color[] newColors = filterColors( oldPaint.getColors() );
+				if( newColors != null ) {
+					paint = new LinearGradientPaint( oldPaint.getStartPoint(), oldPaint.getEndPoint(),
+						oldPaint.getFractions(), newColors, oldPaint.getCycleMethod(),
+						oldPaint.getColorSpace(), oldPaint.getTransform() );
+				}
+			}
 			super.setPaint( paint );
 		}
 
@@ -1000,6 +1060,16 @@ public class FlatSVGIcon
 				color = (newRGB != oldRGB) ? new Color( newRGB, true ) : color;
 			}
 			return color;
+		}
+
+		private Color[] filterColors( Color[] colors ) {
+			Color[] newColors = new Color[colors.length];
+			boolean changed = false;
+			for( int i = 0; i < colors.length; i++ ) {
+				newColors[i] = filterColor( colors[i] );
+				changed = (changed || newColors[i] != colors[i]);
+			}
+			return changed ? newColors : null;
 		}
 	}
 }

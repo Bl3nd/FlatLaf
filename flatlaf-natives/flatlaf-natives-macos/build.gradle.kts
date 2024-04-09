@@ -26,14 +26,17 @@ plugins {
 }
 
 flatlafJniHeaders {
-	headers = listOf( "com_formdev_flatlaf_ui_FlatNativeMacLibrary.h" )
+	headers = listOf(
+		"com_formdev_flatlaf_ui_FlatNativeLibrary.h",
+		"com_formdev_flatlaf_ui_FlatNativeMacLibrary.h"
+	)
 }
 
 library {
-	targetMachines.set( listOf(
+	targetMachines = listOf(
 		machines.macOS.architecture( "arm64" ),
 		machines.macOS.x86_64
-	) )
+	)
 }
 
 var javaHome = System.getProperty( "java.home" )

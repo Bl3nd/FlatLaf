@@ -27,8 +27,8 @@ plugins {
 val sigtest = configurations.create( "sigtest" )
 
 dependencies {
-	testImplementation( libs.bundles.junit )
-	testRuntimeOnly( libs.junit.engine )
+	testImplementation( libs.junit )
+	testRuntimeOnly( libs.junit.launcher )
 
 	// https://github.com/jtulach/netbeans-apitest
 	sigtest( libs.sigtest )
@@ -42,11 +42,11 @@ java {
 tasks {
 	compileJava {
 		// generate JNI headers
-		options.headerOutputDirectory.set( layout.buildDirectory.dir( "generated/jni-headers" ) )
+		options.headerOutputDirectory = layout.buildDirectory.dir( "generated/jni-headers" )
 	}
 
 	jar {
-		archiveBaseName.set( "flatlaf" )
+		archiveBaseName = "flatlaf"
 
 		doLast {
 			ReorderJarEntries.reorderJarEntries( outputs.files.singleFile );
@@ -54,11 +54,32 @@ tasks {
 	}
 
 	named<Jar>( "sourcesJar" ) {
-		archiveBaseName.set( "flatlaf" )
+		archiveBaseName = "flatlaf"
 	}
 
 	named<Jar>( "javadocJar" ) {
-		archiveBaseName.set( "flatlaf" )
+		archiveBaseName = "flatlaf"
+	}
+
+	register<Zip>( "jarNoNatives" ) {
+		group = "build"
+		dependsOn( "jar" )
+
+		archiveBaseName = "flatlaf"
+		archiveClassifier = "no-natives"
+		archiveExtension = "jar"
+		destinationDirectory = layout.buildDirectory.dir( "libs" )
+
+		from( zipTree( jar.get().archiveFile.get().asFile ) )
+		exclude( "com/formdev/flatlaf/natives/**" )
+	}
+
+	withType<AbstractPublishToMaven>().configureEach {
+		dependsOn( "jarNoNatives" )
+	}
+
+	withType<Sign>().configureEach {
+		dependsOn( "jarNoNatives" )
 	}
 
 	check {
@@ -127,6 +148,8 @@ flatlafPublish {
 
 	val natives = "src/main/resources/com/formdev/flatlaf/natives"
 	nativeArtifacts = listOf(
+		NativeArtifact( tasks.getByName( "jarNoNatives" ).outputs.files.asPath, "no-natives", "jar" ),
+
 		NativeArtifact( "${natives}/flatlaf-windows-x86.dll",       "windows-x86",    "dll" ),
 		NativeArtifact( "${natives}/flatlaf-windows-x86_64.dll",    "windows-x86_64", "dll" ),
 		NativeArtifact( "${natives}/flatlaf-windows-arm64.dll",     "windows-arm64",  "dll" ),

@@ -1,21 +1,66 @@
 FlatLaf Change Log
 ==================
 
-## 3.4-SNAPSHOT
-
-#### New features and improvements
-
-- macOS: Support larger window title bar close/minimize/zoom buttons spacing in
-  [full window content](https://www.formdev.com/flatlaf/macos/#full_window_content)
-  mode and introduced "buttons placeholder". (PR #779)
-- Native libraries: System property `flatlaf.nativeLibraryPath` now supports
-  loading native libraries named the same as on Maven central. Improved log
-  messages for loading fails.
-- Fonts: Updated **Inter** to
-  [v4.0](https://github.com/rsms/inter/releases/tag/v4.0).
+## 3.4.1
 
 #### Fixed bugs
 
+- SplitPane: Update divider when client property `JSplitPane.expandableSide`
+  changed.
+- TabbedPane: Fixed swapped back and forward scroll buttons when using
+  `TabbedPane.scrollButtonsPlacement = trailing` (regression in FlatLaf 3.3).
+- Fixed missing window top border on Windows 10 in "full window content" mode.
+  (issue 809)
+- Extras:
+  - `FlatSVGIcon` color filters now support linear gradients. (PR #817)
+  - `FlatSVGIcon`: Use log level `CONFIG` instead of `SEVERE` and allow
+    disabling logging. (issue #823)
+  - Added support for `JSplitPane.expandableSide` client property to
+    `FlatSplitPane`.
+- Native libraries: Added API version check to test whether native library
+  matches the JAR (bad builds could e.g. ship a newer JAR with an older
+  incompatible native library) and to test whether native methods can be invoked
+  (some security software allows loading native library but blocks method
+  invocation).
+- macOS: Fixed crash when running in WebSwing. (issue #826; regression in 3.4)
+
+#### Incompatibilities
+
+- File names of custom properties files for nested Laf classes now must include
+  name of enclosing class name. E.g. nested Laf class `IntelliJTheme.ThemeLaf`
+  used `ThemeLaf.properties` in previous versions, but now needs to be named
+  `IntelliJTheme$ThemeLaf.properties`.
+
+
+## 3.4
+
+#### New features and improvements
+
+- FlatLaf window decorations (Windows 10/11 and Linux): Support "full window
+  content" mode, which allows you to extend the content into the window title
+  bar. (PR #801)
+- macOS: Support larger window title bar close/minimize/zoom buttons spacing in
+  [full window content](https://www.formdev.com/flatlaf/macos/#full_window_content)
+  mode and introduced "buttons placeholder". (PR #779)
+- Native libraries:
+  - System property `flatlaf.nativeLibraryPath` now supports loading native
+    libraries named the same as on Maven central.
+  - Published `flatlaf-<version>-no-natives.jar` to Maven Central. This JAR is
+    equal to `flatlaf-<version>.jar`, except that it does not contain the
+    FlatLaf native libraries. The Maven "classifier" to use this JAR is
+    `no-natives`. You need to distribute the FlatLaf native libraries with your
+    application.
+    See https://www.formdev.com/flatlaf/native-libraries/ for more details.
+  - Improved log messages for loading fails.
+- Fonts: Updated **Inter** to
+  [v4.0](https://github.com/rsms/inter/releases/tag/v4.0).
+- Table: Select all text in cell editor when starting editing using `F2` key.
+  (issue 652)
+
+#### Fixed bugs
+
+- macOS: Setting window background (of undecorated window) to translucent color
+  (alpha < 255) did not show the window translucent. (issue #705)
 - JIDE CommandMenuBar: Fixed `ClassCastException` when JIDE command bar displays
   `JideMenu` in popup. (PR #794)
 
